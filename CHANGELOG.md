@@ -9,4 +9,5 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Added Kubernetes manifest security scanner implementing Pod Security Standards checks with JSON and text output.
 - Initial project structure from the factory utility template.
