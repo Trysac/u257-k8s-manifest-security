@@ -1,30 +1,16 @@
 # Architecture
 
-## Purpose
+The scanner is a small Go library with a thin CLI wrapper. The core algorithm is:
 
-`github.com/Trysac/u257-k8s-manifest-security` is a small, dependency-free Go library: Check Kubernetes workload manifests against Pod Security Standards baseline and restricted controls plus image and memory limit hygiene, with exact field paths and stable rule codes
+1. Read the entire input into memory up to `Options.MaxBytes` (default 4 MiB).
+2. Decode the YAML stream document by document into `yaml.Node` trees without expanding aliases.
+3. Reject alias nodes and nesting deeper than 64 before any semantic analysis.
+4. For each document whose root is a mapping with a known workload `kind`, walk the pod spec (respecting the nesting for Deployment, CronJob, etc.).
+5. Evaluate each rule against the pod spec and containers, building `Finding` values with exact field paths.
+6. Sort findings by document index, path and rule code.
 
-## Shape
+The CLI (`cmd/k8s-manifest-security`) delegates to `Run`, which handles flag parsing, file opening and output formatting.
 
-```text
-caller code --> package k8smanifestsecurity (repository root)
-                    |
-                    +-- pure functions, no I/O, no global mutable state
-                    +-- internal/ (optional private helpers)
-```
+## Rule design
 
-- **Public API**: every exported identifier of the root package. Unexported identifiers and
-  `internal/` packages may change without a major version.
-- **Errors**: invalid input returns an error; exported sentinel errors (such as `ErrBlank`) let
-  callers branch with `errors.Is`. The library never panics on input, prints or exits.
-- **Side effects**: none. If a feature needs I/O, accept an interface (`io.Reader` or a small
-  custom one) instead of opening resources, and record the choice in an ADR.
-
-## Quality contract
-
-`scripts/check` is the single definition of the gates; `fabrica.json` tells the factory and CI
-how to run it. See [TESTING.md](TESTING.md).
-
-## Decisions
-
-Architecture decisions are recorded in [decisions/](decisions/) as numbered ADRs.
+Rules K001–K010 map directly to Pod Security Standards controls and common image/memory hygiene checks. Boolean values follow YAML 1.2 core schema: only unquoted `true` and `false` are recognised, preventing YAML 1.1 gotchas like `yes`/`no`/`on`/`off`.

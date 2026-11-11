@@ -1,23 +1,24 @@
-# Security notes
+# Security
 
-## Threat model
+## Defended
 
-`github.com/Trysac/u257-k8s-manifest-security` is a pure library without I/O. The main risks are:
+The library treats YAML input as untrusted. It enforces:
 
-- **Supply chain**: a compromised dependency or CI action. Mitigation: standard library only,
-  `go.sum` verification, `govulncheck` in the local gates, Dependabot weekly updates, actions
-  pinned by commit SHA, minimal workflow permissions.
-- **Leaked secrets**: tokens committed by mistake. Mitigation: `gitleaks` runs in the local gates
-  and in CI; `.env` files are git-ignored.
-- **Insecure code**: disabled TLS verification, weak crypto, command injection. Mitigation: a
-  `security` gate (gosec, high severity fails, `#nosec` ignored); fix the code instead of silencing
-  it.
-- **Untrusted input**: callers may pass hostile strings. Mitigation: validate input and return
-  explicit errors; never use `unsafe` or `os/exec` with untrusted data.
+- Input size: `Options.MaxBytes`, default `4_194_304` bytes; larger input returns `ErrInputTooLarge`.
+- Document count: `Options.MaxDocuments`, default `1000`; more returns `ErrTooManyDocuments`.
+- YAML aliases: alias nodes are rejected and return `ErrInvalidYAML`, preventing billion-laughs expansion.
+- Nesting depth: deeper than 64 returns `ErrInvalidYAML`, preventing stack exhaustion.
+- Booleans: YAML 1.2 core schema; quoted `true`/`false` are strings.
+- Error text: sentinel errors are wrapped with `%w`; messages include the document index and line and at most 200 characters of input.
 
-## Publishing
+No network access or external services are used. The CLI reads only local files or stdin.
 
-Releases are git tags served through the Go module proxy and checksum database. No registry token
-is stored in the repository.
+## Not defended
 
-To report a vulnerability, see [SECURITY.md](../SECURITY.md).
+- Helm and Kustomize rendering are not performed.
+- Live cluster state and admission control are not contacted.
+- NetworkPolicy and RBAC are not checked.
+- AppArmor and SELinux controls are not checked.
+- Ephemeral containers are not inspected.
+- Image contents, image vulnerabilities and registry access are not checked.
+- The process itself is not sandboxed; it relies on the input limits above.
